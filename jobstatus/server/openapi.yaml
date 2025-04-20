@@ -1,0 +1,289 @@
+openapi: 3.0.3
+info:
+  contact:
+    email: support@example.com
+    name: API Support
+  description: API for simulating and tracking long-running jobs
+  title: Long-Running Jobs API
+  version: 1.0.0
+servers:
+- description: Development server
+  url: http://localhost:8000
+tags:
+- description: Operations for managing long-running jobs
+  name: jobs
+paths:
+  /api/jobs:
+    get:
+      description: |
+        List all jobs with optional filtering by status.
+
+        - **status**: Optional filter parameter to show only jobs with a specific status
+      operationId: list_jobs
+      parameters:
+      - description: Filter jobs by status
+        explode: true
+        in: query
+        name: status
+        required: false
+        schema:
+          $ref: '#/components/schemas/JobStatus'
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/JobResponse'
+                type: array
+          description: List of all jobs in the system
+      summary: List all jobs
+    post:
+      description: |
+        Start a new simulated long-running job with configurable parameters.
+
+        - **duration_seconds**: How long the job should run before completion
+        - **failure_probability**: Chance the job will fail (0.0-1.0)
+        - **name**: Optional name to identify the job
+
+        Returns a job ID that can be used to query the job status.
+      operationId: create_job
+      requestBody:
+        content:
+          application/json:
+            examples:
+              default:
+                value:
+                  duration_seconds: 30
+                  failure_probability: 0.2
+                  name: Example Job
+            schema:
+              $ref: '#/components/schemas/JobRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobResponse'
+          description: Job created with status information
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Create a new long-running job
+  /api/jobs/{job_id}:
+    delete:
+      description: |
+        Cancel a running job and remove it from the system.
+
+        - **job_id**: The UUID of the job to delete
+      operationId: delete_job
+      parameters:
+      - description: Job ID to delete
+        explode: false
+        in: path
+        name: job_id
+        required: true
+        schema:
+          type: string
+        style: simple
+      responses:
+        "204":
+          description: Job successfully deleted
+        "404":
+          content:
+            application/json:
+              example:
+                detail: Job abc123 not found
+              schema:
+                $ref: '#/components/schemas/HTTPError'
+          description: Job not found
+      summary: Cancel and delete a job
+    get:
+      description: |
+        Query the status of a job by its ID.
+
+        The job status can be one of: pending, running, successful, or failed.
+
+        - **job_id**: The UUID of the job to query
+
+        Returns detailed information about the job including status and completion percentage.
+      operationId: get_job_status
+      parameters:
+      - description: Job ID to query
+        explode: false
+        in: path
+        name: job_id
+        required: true
+        schema:
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobResponse'
+          description: Current status of the job
+        "404":
+          content:
+            application/json:
+              example:
+                detail: Job abc123 not found
+              schema:
+                $ref: '#/components/schemas/HTTPError'
+          description: Job not found
+      summary: Get job status by ID
+components:
+  schemas:
+    JobStatus:
+      description: Status of a job
+      enum:
+      - pending
+      - running
+      - successful
+      - failed
+      title: JobStatus
+      type: string
+    JobRequest:
+      example:
+      - duration_seconds: 30
+        failure_probability: 0.2
+        name: Example Job
+      properties:
+        duration_seconds:
+          description: Duration of the job in seconds
+          title: Duration Seconds
+          type: integer
+        failure_probability:
+          default: 0.2
+          description: Probability of job failure (0-1)
+          maximum: 1
+          minimum: 0
+          title: Failure Probability
+          type: number
+        name:
+          description: Optional job name
+          nullable: true
+          title: Name
+          type: string
+      required:
+      - duration_seconds
+      title: JobRequest
+      type: object
+    JobResponse:
+      example:
+        error_message: error_message
+        completion_percentage: 1.4658129
+        updated_at: 6.0274563
+        estimated_completion_time: 5.962134
+        job_id: job_id
+        name: name
+        created_at: 0.8008282
+        status: pending
+      properties:
+        job_id:
+          description: Unique identifier for the job
+          title: Job ID
+          type: string
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        name:
+          description: Optional job name
+          nullable: true
+          title: Name
+          type: string
+        created_at:
+          description: Timestamp when the job was created
+          format: float
+          title: Created At
+          type: number
+        updated_at:
+          description: Timestamp when the job was last updated
+          format: float
+          title: Updated At
+          type: number
+        completion_percentage:
+          description: Percentage of job completion (0-100)
+          format: float
+          nullable: true
+          title: Completion Percentage
+          type: number
+        error_message:
+          description: Error message if job failed
+          nullable: true
+          title: Error Message
+          type: string
+        estimated_completion_time:
+          description: Estimated timestamp when the job will complete
+          format: float
+          nullable: true
+          title: Estimated Completion Time
+          type: number
+      required:
+      - created_at
+      - job_id
+      - status
+      - updated_at
+      title: JobResponse
+      type: object
+    HTTPError:
+      example:
+        detail: detail
+      properties:
+        detail:
+          description: Detailed error message
+          title: Error Detail
+          type: string
+      title: HTTPError
+      type: object
+    ValidationError:
+      example:
+        msg: msg
+        loc:
+        - loc
+        - loc
+        type: type
+      properties:
+        loc:
+          items:
+            type: string
+          title: Location
+          type: array
+        msg:
+          title: Message
+          type: string
+        type:
+          title: Error Type
+          type: string
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+      type: object
+    HTTPValidationError:
+      example:
+        detail:
+        - msg: msg
+          loc:
+          - loc
+          - loc
+          type: type
+        - msg: msg
+          loc:
+          - loc
+          - loc
+          type: type
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          title: Detail
+          type: array
+      title: HTTPValidationError
+      type: object
